@@ -1,0 +1,15 @@
+[project]
+name = "repo"
+version = "0.1.0"
+description = "Chest X-ray-centered 48-hour ward risk prediction prototype"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.18.1",
+    "torch>=2.15.0",
+    "torchvision>=0.29.2",
+]
+
+[project.optional-dependencies]
+mimic = ["torchxrayvision>=1.2", "wfdb>=4.1", "Pillow>=10"]
