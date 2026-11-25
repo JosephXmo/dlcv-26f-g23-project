@@ -9,9 +9,77 @@ uv sync
 uv run python -m cxr_warning smoke --out runs/demo
 ```
 
-The smoke run generates timestamped synthetic admissions, retrieval candidates, transfers and lab records. Synthetic feature vectors stand in for CXR and ECG. `runs/demo/cohort_audit.json` contains the cohort flow and event lead times. `runs/demo/metrics.json` contains all six experiments and identifies their source as `synthetic`.
+The smoke run generates timestamped synthetic admissions, retrieval candidates, transfers and lab records. Synthetic feature vectors stand in for CXR and ECG. `runs/demo/cohort_audit.json` contains the cohort flow and event lead times. `runs/demo/metrics.json` contains all six experiments and identifies their source as `synthetic`. If PyTorch crashes in CPU backward on WSL2, try disabling oneDNN for that run: `uv run python -c 'import runpy, torch; torch.backends.mkldnn.enabled = False; runpy.run_module("cxr_warning", run_name="__main__")' smoke --out runs/demo`.
 
-## Run with Symile-MIMIC
+## Reproduce the course report
+
+The following commands correspond to [the course report](REPORT.md). The synthetic smoke run above and the prototype workflow below are not reproductions of the reported results. Follow the PhysioNet access agreements; use local copies of the [Symile-MIMIC 1.0.0](https://physionet.org/content/symile-mimic/1.0.0/), [MIMIC-IV 3.1](https://physionet.org/content/mimiciv/3.1/), and [MIMIC-IV-ECG 1.0](https://physionet.org/content/mimic-iv-ecg/1.0/) files. The report workflow does not use original CXR JPG files.
+
+Use a private output location on a filesystem that enforces permissions. Git ignores repository-root `data/`, `runs/`, and `outputs/`, but Git ignore rules do not control filesystem access. Never commit input data, per-admission tables, features, predictions, or weights.
+
+```sh
+uv sync --locked --extra repro
+umask 077
+MIMIC=data/mimiciv-3.1/hosp
+SYMILE=data/symile-mimic-1.0.0
+ECG=data/mimic-iv-ecg-1.0
+OUT="$HOME/cxr-report-local"
+mkdir -p "$OUT"
+chmod 700 "$OUT"
+```
+
+### Primary experiment: CXR-indexed cohort and six neural models
+
+`$SYMILE` must contain `symile_mimic_data.csv`, `train.csv`, `val.csv`, `test.csv` and the published `data_npy/{train,val,test}/` with `cxr_<split>.npy` and `hadm_id_<split>.npy`; the test directory also needs `label_test.npy` and `label_hadm_id_test.npy`. As in the historical cohort script, MIMIC-IV 3.1 admissions establish membership and transfers determine ward and ICU timing; Symile metadata supplies admission, discharge, and death fields.
+
+Place the [official torchvision DenseNet121 ImageNet weights](https://download.pytorch.org/models/densenet121-a639ec97.pth) in the `checkpoints` subdirectory of `torch.hub.get_dir()` (typically `~/.cache/torch/hub`). Extraction checks the checksum prefix and runs offline. It center-crops the published tensors without renormalizing. `$ECG` points to unpacked WFDB files at their metadata-relative paths. The historical run separately cross-checked ECG patient, path, and time against the official `record_list.csv`; this runner does not repeat that cross-check, so verify it locally before using the recipe for an exact replication.
+
+```sh
+mkdir -p "$OUT/cxr"
+uv run --locked --extra repro python -m cxr_warning.repro.cxr cohort \
+  --symile "$SYMILE" --admissions "$MIMIC/admissions.csv.gz" \
+  --transfers "$MIMIC/transfers.csv.gz" --out "$OUT/cxr/cohort.csv" \
+  > "$OUT/cxr/cohort_audit.json"
+uv run --locked --extra repro python -m cxr_warning.repro.cxr extract \
+  --manifest "$OUT/cxr/cohort.csv" --data-npy "$SYMILE/data_npy" \
+  --ecg-root "$ECG" --labevents "$MIMIC/labevents.csv.gz" \
+  --out "$OUT/cxr/features.npz"
+uv run --locked --extra repro python -m cxr_warning train \
+  --manifest "$OUT/cxr/cohort.csv" --features "$OUT/cxr/features.npz" \
+  --epochs 25 --seed 42 --bootstrap 500 --specificity 0.90 \
+  --dropout 0.25 --aux-weight 0.25 --out "$OUT/cxr"
+```
+
+Check `cohort_audit.json` against the final train/validation/test counts (3,950 / 310 / 198, including 324 / 22 / 26 positives). `metrics.json` reports the six models, AP (`auprc`), paired intervals, AP/PA results, and the simulated missing-modality scenarios.
+
+### Primary experiment: validation-only all-modality logistic baseline
+
+This separate command uses only the contiguous train/validation prefix of the primary feature cache. It selects `C` by five-fold patient-grouped cross-validation within the training set and scores only validation. It does not score the CXR test set.
+
+```sh
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+uv run --locked --extra repro python -m cxr_warning.repro.cxr_logistic \
+  --manifest "$OUT/cxr/cohort.csv" --features "$OUT/cxr/features.npz" \
+  --out "$OUT/cxr/logreg_trainval.json"
+```
+
+### Secondary experiment: first-ward-entry lab baseline
+
+This cohort starts at first ordinary-ward entry, not at CXR acquisition. Run both stages independently of the primary experiment; no imaging or ECG files are needed.
+
+```sh
+uv run --locked --extra repro python -m cxr_warning.repro.ward_labs cohort \
+  --admissions "$MIMIC/admissions.csv.gz" --transfers "$MIMIC/transfers.csv.gz" \
+  --out "$OUT/ward-entry"
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+uv run --locked --extra repro python -m cxr_warning.repro.ward_labs train \
+  --index "$OUT/ward-entry/expansion_index.csv" --labevents "$MIMIC/labevents.csv.gz" \
+  --d-labitems "$MIMIC/d_labitems.csv.gz" --out "$OUT/ward-entry"
+```
+
+`labs_baseline_log.json` contains the metrics. Compare `verify_split_panel_log.json` with the report: 241,018 admissions and 10,456 positives after lab filtering, the per-split counts, and 46 blood / 4 urine panel entries. The historical logistic runs used scikit-learn 1.3.0; the lockfile uses a newer build compatible with the repository's NumPy stack. Treat the reported real-data figures as comparison targets, not as results verified with this lockfile. The reproduction unit tests use only synthetic fixtures: `uv run --locked --extra repro python -m unittest discover -s tests`.
+
+## Original prototype workflow (not the report)
 
 Use local copies of the credentialed files from [Symile-MIMIC 1.0.0](https://physionet.org/content/symile-mimic/1.0.0/), [MIMIC-IV 2.2](https://physionet.org/content/mimiciv/2.2/), [MIMIC-CXR-JPG 2.0.0](https://physionet.org/content/mimic-cxr-jpg/2.0.0/) and [MIMIC-IV-ECG 1.0](https://physionet.org/content/mimic-iv-ecg/1.0/). Keep the datasets and row-level outputs under ignored directories such as `data/` and `runs/`.
 

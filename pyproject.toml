@@ -13,3 +13,4 @@ dependencies = [
 
 [project.optional-dependencies]
 mimic = ["torchxrayvision>=1.2", "wfdb>=4.1", "Pillow>=10"]
+repro = ["scikit-learn>=1.8", "wfdb>=4.1"]
