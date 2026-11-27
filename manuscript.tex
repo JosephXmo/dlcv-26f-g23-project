@@ -1,0 +1,234 @@
+% manuscript.tex
+% Working manuscript: JAMA-family structure.
+% NOTE: author bylines, author contributions, ethics review/informed consent,
+% trial registration, funding, conflict-of-interest disclosures, and submission
+% information are intentionally NOT included; none are asserted here and must
+% be supplied by the authors.
+% Appendix tables use longtable (see back matter); eAppendix is provided by
+% \input{readmission-supplement.tex} after the references.
+\documentclass[12pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{times}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{xurl}
+\setlength{\emergencystretch}{1em}
+
+\newcommand{\cit}[1]{\textsuperscript{#1}}
+
+\begin{document}
+
+\begin{center}
+{\Large\bfseries Chest Radiograph Representations and 48-Hour Risk of Intensive Care Transfer or Death on General Wards\par}
+\end{center}
+
+\section*{Key Points}
+
+\noindent\fbox{\parbox{0.93\textwidth}{%
+\textbf{Question:} Do frozen chest radiograph representations improve prediction of intensive care unit (ICU) transfer or in-hospital death within 48 hours of imaging beyond laboratory results, electrocardiogram summaries, and radiographic projection?
+
+\medskip
+\textbf{Findings:} In this retrospective analysis of 4458 admissions, frozen chest radiograph embeddings improved classification of report-derived edema and pleural effusion labels compared with projection alone. In the ward test set (198 admissions, 26 events), the image-only model had an average precision of 0.234 vs 0.131 for a constant prediction. Adding the same embeddings to the structured model changed average precision by $-0.004$ (95\% CI, $-0.128$ to 0.146).
+
+\medskip
+\textbf{Meaning:} Frozen embeddings contained information about current radiographic findings and future ward events, but this study did not establish a prognostic benefit from adding them to the structured comparator.}}
+
+\section*{Abstract}
+
+\noindent\textbf{Importance:} A chest radiograph representation can capture findings visible at the time of acquisition without necessarily improving prediction of what happens next.
+
+\medskip
+\noindent\textbf{Objective:} To assess the standalone and incremental prognostic performance of frozen chest radiograph representations at the time of imaging on general wards and to assess their ability to classify selected report-derived findings.
+
+\medskip
+\noindent\textbf{Design, Setting, and Participants:} Retrospective analysis of Symile-MIMIC general ward admissions with a frontal radiograph obtained more than 24 and no more than 72 hours after admission and no ICU stay by the time of imaging. The original patient-disjoint splits were retained.
+
+\medskip
+\noindent\textbf{Exposures:} Frozen DenseNet121 embeddings from an ImageNet pipeline and an NIH chest radiograph pipeline. Models were evaluated with or without laboratory results, electrocardiogram (ECG) waveform summaries, and anteroposterior (AP) or posteroanterior (PA) projection.
+
+\medskip
+\noindent\textbf{Main Outcomes and Measures:} First ICU transfer or in-hospital death after imaging and within 48 hours, with observation ending at discharge. Performance was measured by average precision (AP) and area under the receiver operating characteristic curve (AUROC), with paired patient-bootstrap confidence intervals (CIs) for differences. Separate image-level tasks used explicit positive and negative report-derived labels.
+
+\medskip
+\noindent\textbf{Results:} The training, validation, and test sets included 3950, 310, and 198 admissions, respectively. In the test set (26 events [13.1\%]), NIH embeddings alone yielded an AP of 0.234 and an AUROC of 0.659 vs 0.131 and 0.500 for a constant predictor. AP was 0.234 for the structured model, 0.211 with added ImageNet embeddings, and 0.230 with added NIH embeddings; AUROC was 0.662, 0.653, and 0.672, respectively. Adding NIH embeddings changed AP by $-0.004$ (95\% CI, $-0.128$ to 0.146) and AUROC by 0.009 (95\% CI, $-0.097$ to 0.122). In image-level analyses, adding NIH embeddings to projection increased AP from 0.528 to 0.856 for edema and from 0.669 to 0.884 for pleural effusion.
+
+\medskip
+\noindent\textbf{Conclusions and Relevance:} Frozen chest radiograph embeddings captured signal for selected report-derived findings and discriminated ward events better than a constant predictor. This exploratory analysis did not establish incremental prognostic value over the available structured inputs; intervals were wide and the test set was reused.
+
+\section*{Introduction}
+
+Clinical deterioration on general wards can prompt transfer to an ICU. Early warning scores usually use measurements that can be updated throughout an admission, whereas an image-based prediction is anchored to the moment a radiograph is obtained.\cit{1} Chest radiographs have been studied as prognostic inputs in emergency department patients with coronavirus disease 2019,\cit{2} but that setting differs from a general ward both in why imaging is obtained and in what outcomes are predicted.
+
+For computer vision, two questions must be separated. Can a frozen image representation recover findings documented on the radiograph? Does the same representation add information about future events beyond the variables already recorded? To address these questions, we compared fixed DenseNet121 feature extraction pipelines with different pretraining and preprocessing, tested pixels against a projection-only comparator, and evaluated matched models with and without image features on the same admissions and outcomes. We also tested whether reducing the image to scores for edema and pleural effusion improved risk prediction.
+
+\section*{Methods}
+
+\subsection*{Data Sources, Cohort, and Outcome}
+
+This retrospective secondary analysis used Symile-MIMIC v1.0.0,\cit{3} which links a selected frontal chest radiograph, ECG, and laboratory data for multimodal learning. We used the supplied image selection and the original patient-disjoint splits, not the published Symile objective or weights. The selected image was obtained more than 24 and no more than 72 hours after admission; this was neither a census of ward radiographs nor a cohort indexed to the first emergency department radiograph. For the retrieval test split, only the matched image-admission pair per query was retained; retrieval labels were not used as clinical outcomes.
+
+The unit of analysis was an admission, indexed at acquisition of the selected AP or PA radiograph. MIMIC-IV v3.1 admissions and transfers were used to verify admission identity and ward and ICU timing;\cit{4} admission, discharge, and death times were taken from the Symile master table. We excluded unmatched admissions, images outside the admission, inconsistent death records or death by imaging, ICU entry at or before imaging, and records without a uniquely identifiable general ward at imaging.
+
+The outcome was first ICU transfer or in-hospital death occurring strictly after imaging and no later than the earlier of 48 hours or discharge. ICU transfers were not adjudicated as planned or unplanned. Admissions without an observed event and with insufficient follow-up to determine the outcome were excluded rather than treated as negative.
+
+\subsection*{Structured Predictors}
+
+We used 50 laboratory item--unit combinations selected from training data. For each combination we used the earliest eligible finite value in the 24 hours before or after admission, requiring measurement time to precede or equal recording time and recording time to precede or equal imaging. Results without an admission identifier were eligible only if they belonged to the same patient and were measured before admission within that window. ECG features were 7 waveform summary statistics per lead from 12 leads; the MIMIC-IV-ECG inventory was used to verify patient, record, and acquisition time, and the ECG had to fall within a uniquely identified admission and be acquired no later than imaging.\cit{5} There was no independent timestamp for when ECG results became available. Missing modalities did not result in exclusion. The structured comparator also included AP or PA projection. Concurrent ward vital signs, oxygen use, and mental status needed to reproduce NEWS, NEWS2, MEWS, or qSOFA were not available for a faithful comparison.
+
+\subsection*{Image Representations and Preprocessing}
+
+Both pipelines used the same image tensors and a $224\times224$ center crop. Frozen DenseNet121 encoders produced a 1024-dimensional vector by global average pooling of the final convolutional feature map, without an additional rectified linear activation, classification head, or fine-tuning.\cit{6} The ImageNet pipeline used the normalized 3-channel tensor with TorchVision ImageNet weights.\cit{7} The NIH pipeline reversed the supplied channel normalization, verified that all channels represented the same grayscale image, and mapped the single channel from $[0,1]$ to $[-1024,1024]$ for the TorchXRayVision \texttt{densenet121-res224-nih} encoder.\cit{8} We did not use combined weights trained on MIMIC-CXR. Because preprocessing and weights differed, this comparison estimates the difference between the two pipelines, not the isolated effect of the pretraining dataset.
+
+The main model comparison used the same L2-regularized logistic regression pipeline with laboratories, ECG, and projection, with or without either image embedding. Additional analyses used a constant score equal to training prevalence, image features alone, projection alone, and matched comparisons with smaller structured baselines. We also compared shallow histogram gradient boosting models with laboratories and projection, with or without NIH embeddings; trees had maximum depth 2, learning rate 0.05, at least 30 observations per leaf, and at most 63 bins, with the number of iterations (50 or 100) and L2 penalty (1 or 10) tuned without early stopping.
+
+\subsection*{Image-Level Probes and Image-Derived Scores}
+
+In separate classification analyses, we compared projection alone with projection plus the frozen NIH representation for edema, pleural effusion, and pneumothorax. Image-level samples used the original splits, were deduplicated by examination, and retained only matched retrieval pairs where applicable. We included only explicit positive and negative CheXpert report-derived labels from MIMIC-CXR-JPG; uncertain and blank labels were not considered negative.\cit{9} In a small pneumothorax analysis we sampled an equal number of explicit negative and positive images within each split; AP from this balanced sample does not estimate performance at natural prevalence.
+
+For the ward risk analysis, separate regularized logistic classifiers (C $=$ 0.01) produced scores for edema and pleural effusion from the NIH embeddings. Scores for fitting the risk model were generated out of fold by patient, including within tuning folds; validation and test scores came from image classifiers fitted on training patients only. Report labels were never direct inputs to the risk model. The comparison was laboratories plus projection with vs without the 2 image scores.
+
+\subsection*{Statistical Analysis}
+
+Models used the same patient-grouped 5-fold splits (seed 42) within training. Preprocessing was fitted only on the fitting partition; numeric features were standardized and missing values were mean-imputed with missingness indicators for individual laboratory inputs and for the ECG as a whole when included. For each logistic risk model, C was selected by mean training cross-validation AP from 0.0001, 0.001, 0.01, 0.1, and 1. Final models were fitted on the training split, and the separate validation split was used for checks. The original test split had been evaluated previously; these comparisons are exploratory, not independent validation.
+
+AP summarizes precision over increments in recall and is not the trapezoidal area under the precision-recall curve; for a constant predictor, test AP is the event fraction.\cit{10} We also report AUROC and, for the 3 main matched models, Brier scores. Two-sided percentile 95\% CIs for within-cohort model differences were obtained from 2000 bootstrap resamples by patient, with models compared on the same resamples. No multiplicity adjustment was applied. Differences were computed before rounding.
+
+\section*{Results}
+
+\subsection*{Cohort and Data Availability}
+
+After removing unmatched retrieval candidates, 10\,000 training, 750 validation, and 464 test admissions were screened. Of these, 3985, 313, and 199 met the eligibility criteria; 35, 3, and 1 were then excluded for unknown outcome status. The final splits comprised 3950, 310, and 198 admissions from 3564, 309, and 198 patients, with 324 (8.2\%), 22 (7.1\%), and 26 (13.1\%) events. At least 1 eligible laboratory result was available for 3916, 306, and 197 admissions; a time-matched ECG was available for 921, 78, and 51.
+
+\subsection*{Standalone and Incremental Ward Prognosis}
+
+NIH embeddings alone had higher test AP and AUROC than a constant predictor (Table~\ref{tab:main}). Projection alone had an AP of 0.176 and an AUROC of 0.644. Adding NIH embeddings to projection changed AP by 0.058 (95\% CI, $-0.009$ to 0.215) and AUROC by 0.016 (95\% CI, $-0.080$ to 0.107). Thus, the comparison against a constant predictor does not establish what the pixels add beyond projection.
+
+In the matched comparison with laboratories, ECG, and projection, neither image pipeline showed a clear gain over the structured model (Table~\ref{tab:main}). The NIH pipeline had higher point estimates than the ImageNet pipeline on the test set (AP difference, 0.019 [95\% CI, $-0.066$ to 0.150]; AUROC difference, 0.018 [95\% CI, $-0.061$ to 0.092]), but both metrics ranked the 2 pipelines in the opposite order on the validation set. Test Brier scores were 0.112 for the structured model, 0.114 with ImageNet embeddings, and 0.113 with NIH embeddings.
+
+\subsection*{Classification of Radiographic Findings}
+
+The NIH embeddings improved classification of report-derived edema and pleural effusion labels relative to projection alone (Table~\ref{tab:probe}). The smaller pneumothorax comparison was inconclusive. When the out-of-fold edema and effusion scores were added to the ward model with laboratories and projection, AP changed from 0.244 to 0.239 (difference, $-0.005$ [95\% CI, $-0.075$ to 0.056]) and AUROC from 0.679 to 0.678 (difference, $-0.001$ [95\% CI, $-0.074$ to 0.074]).
+
+\subsection*{Sensitivity and Control Analyses}
+
+In sensitivity analyses (Table~\ref{tab:sens}), adding NIH embeddings to laboratory results alone increased logistic regression AP from 0.185 to 0.245 and AUROC from 0.584 to 0.672; both difference intervals included zero. When projection was already included with laboratory results, the corresponding logistic regression estimates did not improve (AP, 0.244 to 0.240; AUROC, 0.679 to 0.676). In shallow gradient boosting with laboratories and projection, AP increased from 0.178 to 0.274 and AUROC from 0.587 to 0.651 (AP difference, 0.095 [95\% CI, $-0.057$ to 0.255]; AUROC difference, 0.064 [95\% CI, $-0.053$ to 0.176]). This compares 2 tree models, not the fused tree with a structured logistic model.
+
+\subsection*{Exploratory Heart Failure Readmission Pilot}
+
+A separate exploratory pilot evaluated 30-day acute readmission after discharge among admissions with heart failure. Its endpoint, prediction time, and eligible cohort differed from those of the ward analysis; results are reported in the eAppendix and are not a validation of the ward model.
+
+\section*{Discussion}
+
+The same frozen representation gave different answers to 2 questions. It substantially improved classification of edema and pleural effusion report labels over projection alone, and it discriminated future ward events better than a constant predictor. However, adding it to available structured variables did not establish a prognostic gain. Recovering information about what was present on the image was not sufficient to improve prediction of what occurred during the next 48 hours.
+
+Projection alone discriminated the composite outcome to a degree similar to that of the image-only model by AUROC. Projection may reflect imaging circumstances or patient status, and image features may encode some of the same information; the analysis does not identify which cues the encoder used or whether they were causally related to the outcome. The direction and size of the incremental estimates depended on the baseline and model. The findings do not establish equivalence, nor do they rule out useful image information with different representations, timing, or clinical comparators. Earlier exploratory neural fusion models evaluated on this same test set also showed weak discrimination, which does not indicate that the task lacks predictable signal.
+
+The imaging-indexed comparison in this study differs from the repeated measurements used by ward early warning systems and from disease-specific emergency department imaging studies.\cit{1,2} Their performance estimates are not direct benchmarks. A more informative next evaluation would pair chest images with contemporaneous ward vital signs and oxygen data, compare models with and without pixels on the same patients, and use an independent test cohort with enough events to estimate a clinically relevant difference.
+
+\subsection*{Limitations}
+
+The selected Symile radiographs represent a subset of admissions imaged within a restricted time window; results do not generalize directly to all ward admissions or to emergency department triage. Some ICU transfers may have been planned, and discharge ends ascertainment of the in-hospital outcome. Structured inputs were sparse for ECG (51 of 198 test admissions), laboratory results did not necessarily describe the state immediately before imaging, and a faithful bedside early warning comparator could not be constructed: a proxy count based on emergency department recorded measurement times found respiratory rate and oxygen saturation jointly recorded for only 49, 3, and 2 admissions in the training, validation, and test splits, which does not establish the availability of contemporaneous general-ward vital signs; oxygen therapy and mental status were not verifiable, and proxy scoring was not attempted. Image-level reference standards were report-derived, not independently adjudicated, and performance on those labels does not establish radiologist-level diagnosis or explain the model's risk predictions. The head-to-head encoder comparison does not isolate pretraining effects. The test set was reused and included 26 events; intervals were wide, analyses were not multiplicity adjusted, and no external or prospective performance or clinical utility was assessed.
+
+\section*{Conclusions}
+
+Frozen chest radiograph embeddings improved recognition of selected report-derived findings and contained standalone prognostic signal for 48-hour ICU transfer or death. Their incremental value over available structured variables at the time of imaging was not established.
+
+\section*{References}
+
+\begin{enumerate}
+\item Edelson DP, Churpek MM, Carey KA, et al. Early warning scores with and without artificial intelligence. \textit{JAMA Netw Open}. 2024;7(10):e2438986. \url{doi:10.1001/jamanetworkopen.2024.38986}
+\item Shamout FE, Shen Y, Wu N, et al. An artificial intelligence system for predicting the deterioration of COVID-19 patients in the emergency department. \textit{NPJ Digit Med}. 2021;4:80. \url{doi:10.1038/s41746-021-00453-0}
+\item Saporta A, Puli AM, Goldstein M, Ranganath R. Symile-MIMIC: a multimodal clinical dataset of chest X-rays, electrocardiograms, and blood labs from MIMIC-IV. Version 1.0.0. PhysioNet; 2025. \url{doi:10.13026/3vvj-s428}
+\item Johnson A, Bulgarelli L, Pollard T, et al. MIMIC-IV. Version 3.1. PhysioNet; 2024. \url{doi:10.13026/kpb9-mt58}
+\item Gow B, Pollard T, Nathanson LA, et al. MIMIC-IV-ECG: Diagnostic Electrocardiogram Matched Subset. Version 1.0. PhysioNet; 2023. \url{doi:10.13026/4nqg-sb35}
+\item Huang G, Liu Z, Van Der Maaten L, Weinberger KQ. Densely connected convolutional networks. In: \textit{Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition}; 2017.
+\item TorchVision. DenseNet121 model documentation: \url{DenseNet121_Weights.IMAGENET1K_V1}. \url{https://docs.pytorch.org/vision/stable/models/generated/torchvision.models.densenet121.html}
+\item TorchXRayVision. DenseNet121 model definitions and NIH-specific \url{densenet121-res224-nih} checkpoint. \url{https://github.com/mlmed/torchxrayvision/blob/master/torchxrayvision/models.py}
+\item Johnson A, Lungren M, Peng Y, et al. MIMIC-CXR-JPG: chest radiographs with structured labels. Version 2.0.0. PhysioNet; 2019. \url{doi:10.13026/8360-t248}
+\item Saito T, Rehmsmeier M. The precision-recall plot is more informative than the ROC plot when evaluating binary classifiers on imbalanced datasets. \textit{PLoS One}. 2015;10(3):\allowbreak e0118432. \url{doi:10.1371/journal.pone.0118432}
+\end{enumerate}
+
+% ---------------- Back matter: tables (longtable) ----------------
+
+{\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}p{4.3cm}ccp{2.2cm}p{2.7cm}p{2.7cm}@{}}
+\caption{Test Performance for 48-Hour ICU Transfer or In-Hospital Death}\label{tab:main}\\
+\toprule
+Model & AP & AUROC & Comparator for difference & AP difference (95\% CI) & AUROC difference (95\% CI) \\
+\midrule
+\endfirsthead
+\caption[]{Test Performance for 48-Hour ICU Transfer or In-Hospital Death (continued)}\\
+\toprule
+Model & AP & AUROC & Comparator for difference & AP difference (95\% CI) & AUROC difference (95\% CI) \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Constant score & 0.131 & 0.500 & --- & --- & --- \\
+NIH embeddings only & 0.234 & 0.659 & Constant score & 0.102 (0.028 to 0.261) & 0.159 (0.047 to 0.260) \\
+Projection only & 0.176 & 0.644 & --- & --- & --- \\
+Laboratories + ECG + projection & 0.234 & 0.662 & --- & --- & --- \\
+\quad + ImageNet embeddings & 0.211 & 0.653 & Laboratories + ECG + projection & $-0.023$ ($-0.123$ to 0.048) & $-0.009$ ($-0.115$ to 0.101) \\
+\quad + NIH embeddings & 0.230 & 0.672 & Laboratories + ECG + projection & $-0.004$ ($-0.128$ to 0.146) & 0.009 ($-0.097$ to 0.122) \\
+\end{longtable}
+\par\noindent{\footnotesize All rows use the same 198 test admissions (26 events). AP indicates average precision; AUROC, area under the receiver operating characteristic curve; CI, confidence interval; ECG, electrocardiogram; NIH, National Institutes of Health. Differences are paired by patient (2000 bootstrap resamples). Selected C values: 0.01 (structured), 0.001 (with ImageNet embeddings), 0.001 (with NIH embeddings). Test Brier scores were 0.112 (structured), 0.114 (with ImageNet embeddings), and 0.113 (with NIH embeddings).\par}
+}
+
+\bigskip
+
+{\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}p{3.6cm}p{2.7cm}p{2.7cm}p{3.1cm}p{3.1cm}@{}}
+\caption{Test Performance for Classification of Report-Derived Findings}\label{tab:probe}\\
+\toprule
+Finding (positive/negative images) & AP: projection / + NIH & AUROC: projection / + NIH & AP difference (95\% CI) & AUROC difference (95\% CI) \\
+\midrule
+\endfirsthead
+\caption[]{Test Performance for Classification of Report-Derived Findings (continued)}\\
+\toprule
+Finding (positive/negative images) & AP: projection / + NIH & AUROC: projection / + NIH & AP difference (95\% CI) & AUROC difference (95\% CI) \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Edema (82/88) & 0.528 / 0.856 & 0.583 / 0.861 & 0.328 (0.255 to 0.407) & 0.278 (0.209 to 0.342) \\
+Pleural effusion (166/90) & 0.669 / 0.884 & 0.543 / 0.814 & 0.215 (0.162 to 0.267) & 0.271 (0.201 to 0.334) \\
+Pneumothorax (17/17; balanced sample) & 0.518 / 0.574 & 0.529 / 0.574 & 0.056 ($-0.080$ to 0.237) & 0.045 ($-0.161$ to 0.242) \\
+\end{longtable}
+\par\noindent{\footnotesize Samples differ by finding and are not the 198-admission prognosis test set. Differences compare projection plus NIH embeddings with projection alone on the same images for each finding. The pneumothorax sample was balanced within each split (17 positive and 17 negative test images); AP on this balanced sample does not estimate performance at natural prevalence. CI indicates confidence interval; NIH, National Institutes of Health.\par}
+}
+
+\bigskip
+
+{\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}p{4.2cm}p{2.4cm}p{2.4cm}p{3.0cm}p{3.0cm}@{}}
+\caption{Sensitivity and Control Analyses for 48-Hour ICU Transfer or In-Hospital Death}\label{tab:sens}\\
+\toprule
+Comparison (baseline $\rightarrow$ augmented) & Validation AP / AUROC & Test AP / AUROC & Test AP difference (95\% CI) & Test AUROC difference (95\% CI) \\
+\midrule
+\endfirsthead
+\caption[]{Sensitivity and Control Analyses for 48-Hour ICU Transfer or In-Hospital Death (continued)}\\
+\toprule
+Comparison (baseline $\rightarrow$ augmented) & Validation AP / AUROC & Test AP / AUROC & Test AP difference (95\% CI) & Test AUROC difference (95\% CI) \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Projection only $\rightarrow$ projection + NIH (logistic regression) & --- & 0.176 / 0.644 $\rightarrow$ 0.234 / 0.659 & 0.058 ($-0.009$ to 0.215) & 0.016 ($-0.080$ to 0.107) \\
+Laboratories only $\rightarrow$ laboratories + NIH (logistic regression) & 0.140 / 0.584 $\rightarrow$ 0.142 / 0.648 & 0.185 / 0.584 $\rightarrow$ 0.245 / 0.672 & 0.060 ($-0.041$ to 0.197) & 0.088 ($-0.039$ to 0.221) \\
+Laboratories + projection $\rightarrow$ + NIH (logistic regression) & 0.131 / 0.630 $\rightarrow$ 0.140 / 0.650 & 0.244 / 0.679 $\rightarrow$ 0.240 / 0.676 & $-0.004$ (CI not reported) & $-0.003$ (CI not reported) \\
+Laboratories + projection $\rightarrow$ + edema and effusion scores (logistic regression) & 0.131 / 0.630 $\rightarrow$ 0.141 / 0.645 & 0.244 / 0.679 $\rightarrow$ 0.239 / 0.678 & $-0.005$ ($-0.075$ to 0.056) & $-0.001$ ($-0.074$ to 0.074) \\
+Laboratories + projection $\rightarrow$ + NIH (shallow gradient boosting) & 0.130 / 0.645 $\rightarrow$ 0.159 / 0.645 & 0.178 / 0.587 $\rightarrow$ 0.274 / 0.651 & 0.095 ($-0.057$ to 0.255) & 0.064 ($-0.053$ to 0.176) \\
+\end{longtable}
+\par\noindent{\footnotesize Each row compares the same model family before and after adding features. Differences are paired by patient (2000 bootstrap resamples) on the 198-admission test set. Shallow gradient boosting trees: maximum depth 2, learning rate 0.05, minimum 30 observations per leaf, at most 63 bins; 50 iterations and L2 penalty of 1 were selected within training for both tree models. AP indicates average precision; AUROC, area under the receiver operating characteristic curve; CI, confidence interval; NIH, National Institutes of Health.\par}
+}
+
+% ---------------- eAppendix (provided by collaborator; do not edit) ----------------
+\input{readmission-supplement.tex}
+
+\end{document}
