@@ -1,0 +1,145 @@
+\clearpage
+\section*{eAppendix. Exploratory 30-Day Acute Readmission After Heart Failure Hospitalization}
+\label{sec:readmission-supplement}
+
+\subsection*{Purpose}
+We examined whether a frozen chest radiograph representation or image-derived scores for pulmonary edema and cardiomegaly improved discrimination over a structured baseline for 30-day acute readmission after a hospitalization involving heart failure. We separately assessed the feasibility of selecting radiographs closer to discharge and using discharge-window laboratory measurements. This discharge-indexed pilot addressed a different outcome and cohort from the radiograph-indexed ward analysis; it was not a validation of that analysis.
+
+\subsection*{eMethods}
+\paragraph{Data and cohort.} We linked the Symile-MIMIC 1.0.0 partition files, metadata, and released radiograph tensors to MIMIC-IV 3.1 hospital data. We included admissions with a heart failure diagnosis and a single Symile-selected frontal radiograph acquired between admission and discharge. Eligible codes were ICD-9-CM 428.x, 398.91, 402.01, 402.11, 402.91, 404.01, 404.03, 404.11, 404.13, 404.91, and 404.93 and ICD-10-CM I50.x, I11.0, I13.0, and I13.2. We retained the original patient-disjoint partitions and, for the retrieval test partition, only the matching positive image for each eligible query. MIMIC-IV-Note 2.2 radiology reports were used only for the separate near-discharge feasibility inventory.
+
+\paragraph{Prediction time and outcome.} Prediction time was discharge. The endpoint was a locally recorded emergency or urgent admission for any cause strictly after discharge and within 30 days. Planned admissions, psychiatric internal transfers, and admissions recorded as transfers from another hospital within 24 hours did not qualify. Death before a qualifying readmission precluded an event; when death was recorded only as a date and a qualifying readmission occurred on the same date, the readmission was counted. Event-free admissions required evidence of follow-up beyond day 30. We excluded index deaths, acute hospital discharges or overlapping admissions, ambiguous returns without a qualifying event, competing deaths, and admissions with insufficient follow-up, including unresolved day-30 death timing. The data did not capture readmissions to other hospitals.
+
+\paragraph{Predictors and fitting.} The structured baseline used age (capped at 91 years), sex, length of stay, admissions in the preceding 30 and 365 days, admission type and source, discharge destination, and AP/PA projection. It did not include discharge laboratory values or vital signs. The global representation used the same frozen NIH-pretrained DenseNet121 pipeline as the ward analysis: a $224\times224$ center crop, conversion to the encoder's single-channel input scale, and global average pooling to 1024 features. The image-only model did not explicitly receive projection metadata. For each finding, a logistic classifier learned from explicit positive and negative report labels; missing or uncertain labels were not treated as negative. Training admissions received out-of-fold scores from patient-disjoint folds, and validation and test scores came from classifiers fit only on labeled training admissions.
+
+\paragraph{Statistical analysis.} For the structured, image-only, and global fusion models, we selected the L2 logistic regression parameter $C$ from 0.0001, 0.001, 0.01, 0.1, and 1 using mean average precision across five stratified patient-grouped training folds (seed 42). Preprocessing parameters were learned within the corresponding fitting partition. For both finding classifiers and score-augmented risk models, we fixed $C=1$ without retuning. The main comparison within the finding-score analysis was the structured model plus both scores vs the structured baseline. We report average precision (AP), area under the receiver operating characteristic curve (AUROC), and paired test differences with percentile 95\% CIs from 2000 patient-level bootstrap resamples. The test partition had been examined previously, and intervals were not adjusted for multiplicity.
+
+\subsection*{eResults}
+The analysis included 2439 admissions. The test set included 85 admissions and 13 readmissions (eTable~1). Neither the global embedding nor the finding scores clearly improved on the structured baseline (eTables~2--4). With both scores, the test AP difference was 0.002 (95\% CI, $-0.006$ to 0.011). The AUROC difference was 0.005 (95\% CI, $-0.003$ to 0.014). The image-only model had lower AUROC than the structured baseline in this exploratory split; that contrast does not test performance against chance.
+
+\begingroup
+\small
+\setlength{\tabcolsep}{4pt}
+
+\noindent\textbf{eTable 1. Cohort flow and 30-day outcome by partition}\par
+\begin{longtable}{@{}p{.59\linewidth}rrr@{}}
+\toprule
+Outcome classification & Train & Validation & Test \\
+\midrule
+\endhead
+Before outcome exclusions & 3488 & 210 & 147 \\
+Acute readmission & 617 & 28 & 13 \\
+Documented event-free follow-up beyond 30 days & 1623 & 86 & 72 \\
+Ambiguous return & 234 & 10 & 9 \\
+Competing death within 30 days & 141 & 17 & 9 \\
+Unknown follow-up or unresolved death timing & 466 & 39 & 28 \\
+Index death & 381 & 27 & 16 \\
+Transfer or overlapping admission & 26 & 3 & 0 \\
+\midrule
+Analysis set, admissions & 2240 & 114 & 85 \\
+Analysis set, patients & 1831 & 111 & 84 \\
+Readmission rate & 27.5\% & 24.6\% & 15.3\% \\
+\bottomrule
+\end{longtable}
+
+\noindent\textbf{eTable 2. Coverage of explicit positive and negative report labels}\par
+\begin{longtable}{@{}llrrrr@{}}
+\toprule
+Finding & Partition & Admissions & Labeled & Positive & Negative \\
+\midrule
+\endhead
+Pulmonary edema & Train & 2240 & 1157 & 759 & 398 \\
+ & Validation & 114 & 61 & 38 & 23 \\
+ & Test & 85 & 39 & 27 & 12 \\
+Cardiomegaly & Train & 2240 & 1118 & 1024 & 94 \\
+ & Validation & 114 & 72 & 68 & 4 \\
+ & Test & 85 & 42 & 40 & 2 \\
+\bottomrule
+\end{longtable}
+
+\noindent\textbf{eTable 3. Readmission discrimination by model}\par
+\begin{longtable}{@{}p{.43\linewidth}rrrr@{}}
+\toprule
+ & \multicolumn{2}{c}{Validation} & \multicolumn{2}{c}{Test} \\
+\cmidrule(lr){2-3}\cmidrule(l){4-5}
+Model & AP & AUROC & AP & AUROC \\
+\midrule
+\endhead
+Structured (including AP/PA) & 0.278 & 0.556 & 0.281 & 0.630 \\
+Global image embedding only & 0.274 & 0.543 & 0.180 & 0.418 \\
+Structured + global embedding & 0.287 & 0.534 & 0.170 & 0.495 \\
+Structured + edema score & 0.280 & 0.556 & 0.283 & 0.631 \\
+Structured + cardiomegaly score & 0.280 & 0.557 & 0.279 & 0.629 \\
+Structured + both scores & 0.279 & 0.553 & 0.283 & 0.636 \\
+\bottomrule
+\end{longtable}
+\noindent The test constant-score reference was AP 0.153 and AUROC 0.500. Selected $C$ values were 1.0 (structured), 0.0001 (image only), and 0.01 (global fusion).
+\medskip
+
+\noindent\textbf{eTable 4. Paired test differences from the structured model}\par
+\begin{longtable}{@{}p{.32\linewidth}ll@{}}
+\toprule
+Model & $\Delta$AP (95\% CI) & $\Delta$AUROC (95\% CI) \\
+\midrule
+\endhead
+Global image embedding only & $-0.101$ ($-0.361$ to $0.103$) & $-0.213$ ($-0.416$ to $-0.026$) \\
+Structured + global embedding & $-0.110$ ($-0.310$ to $0.003$) & $-0.136$ ($-0.272$ to $0.00002$) \\
+Structured + edema score & $0.002$ ($-0.003$ to $0.010$) & $0.001$ ($-0.007$ to $0.009$) \\
+Structured + cardiomegaly score & $-0.002$ ($-0.009$ to $0.003$) & $-0.001$ ($-0.007$ to $0.005$) \\
+Structured + both scores & $0.002$ ($-0.006$ to $0.011$) & $0.005$ ($-0.003$ to $0.014$) \\
+\bottomrule
+\end{longtable}
+\noindent Extra precision is shown for the global fusion AUROC interval to make clear that its upper bound is positive.
+\medskip
+
+\noindent\textbf{eTable 5. Index radiograph timing and projection}\par
+\begin{longtable}{@{}lrrrrrrr@{}}
+\toprule
+Partition & Admissions & $\leq$24 h & $\leq$48 h & $\leq$72 h & $>$72 h & AP view & PA view \\
+\midrule
+\endhead
+Train & 2240 & 145 & 333 & 591 & 1649 & 1920 & 320 \\
+Validation & 114 & 10 & 18 & 34 & 80 & 92 & 22 \\
+Test & 85 & 6 & 13 & 24 & 61 & 71 & 14 \\
+\bottomrule
+\end{longtable}
+\noindent Timing windows are cumulative, measured backward from discharge. AP view denotes anteroposterior and PA view posteroanterior; elsewhere AP denotes average precision.
+\medskip
+
+\noindent\textbf{eTable 6. Near-discharge radiology report inventory}\par
+\begin{longtable}{@{}llrrr@{}}
+\toprule
+Window & Partition & Original image & Report candidate & Difference \\
+\midrule
+\endhead
+24 h & Train & 145 / 143 / 30 & 208 / 203 / 55 & +63 / +60 / +25 \\
+ & Validation & 10 / 10 / 2 & 10 / 10 / 1 & 0 / 0 / $-1$ \\
+ & Test & 6 / 6 / 0 & 7 / 7 / 1 & +1 / +1 / +1 \\
+48 h & Train & 333 / 315 / 74 & 490 / 462 / 155 & +157 / +147 / +81 \\
+ & Validation & 18 / 18 / 3 & 21 / 21 / 4 & +3 / +3 / +1 \\
+ & Test & 13 / 13 / 1 & 12 / 11 / 1 & $-1$ / $-2$ / 0 \\
+72 h & Train & 591 / 550 / 132 & 792 / 723 / 232 & +201 / +173 / +100 \\
+ & Validation & 34 / 34 / 6 & 38 / 38 / 8 & +4 / +4 / +2 \\
+ & Test & 24 / 24 / 2 & 23 / 22 / 1 & $-1$ / $-2$ / $-1$ \\
+\bottomrule
+\end{longtable}
+\noindent Entries are admissions / patients / readmission events. We selected the in-admission report closest to discharge among same-patient, same-admission reports with frontal projection inferred from text. Across the analysis set, 2086 admissions had at least one report candidate and 1455 had multiple. The candidate set is not a verified superset of the original images. Pixel linkage and corresponding finding labels for newly selected studies were not verified, and no model was fitted to these candidates.
+\medskip
+
+\noindent\textbf{eTable 7. Core laboratory and proxy vital-sign coverage before discharge}\par
+\begin{longtable}{@{}lrrr@{}}
+\toprule
+Partition & Admissions & All 5 labs, No. (\%) & All labs and vitals, No. (\%) \\
+\midrule
+\endhead
+Train & 2240 & 2140 (95.5) & 271 (12.1) \\
+Validation & 114 & 107 (93.9) & 8 (7.0) \\
+Test & 85 & 78 (91.8) & 9 (10.6) \\
+\bottomrule
+\end{longtable}
+\noindent The 48-hour panel comprised creatinine, blood urea nitrogen, sodium, potassium, and bicarbonate. Laboratory values had to be recorded during the admission and stored by discharge. The five vital-sign proxies were heart rate, respiratory rate, systolic blood pressure, oxygen saturation, and temperature from ICU or emergency department data. These proxies do not establish ward vital-sign coverage; emergency department measurement time does not establish independent availability. No test readmissions occurred in the subset with all labs and vitals. No discharge-laboratory or vital-sign model was fitted.
+
+\endgroup
+
+\subsection*{Limitations}
+This retrospective, single-center pilot had 13 test events, used a previously examined test partition, and lacked external validation. Event prevalence differed between validation and test, which affects AP. Local outcome ascertainment and exclusion of admissions without documented follow-up constrain generalizability. The finding scores were learned from a partially labeled subset; in particular, only 2 of the 42 test admissions with explicit cardiomegaly labels were labeled negative. Only 13 test radiographs were acquired within 48 hours of discharge, including 1 readmission event, and the report inventory yielded only 1 event at that horizon. The findings therefore do not establish the prognostic value of residual congestion on verified near-discharge radiographs, nor do they establish the value of adding discharge laboratory measurements.
